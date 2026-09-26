@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "kind": "gallery-release",
+  "slug": "liquid-metal",
+  "initialDelivery": "accepted-existing-product",
+  "evidence": {
+    "kind": "owner-approval",
+    "testsExecuted": false,
+    "statement": "All current gallery apps are accepted as finished; copies continue with focused development without initial delivery.",
+    "userRequest": "все приложения что у нас сейчас в галерее мы считаем законченными и деливери им не требуется"
+  },
+  "baseline": {
+    "repositoryCommit": "a03de419cf00f1e842120c4cbf2a4ecb12316a3c",
+    "productTree": "56d76ea23733aecd51686ef12cc94f9aa9021b9d"
+  },
+  "workflowVersion": 1,
+  "workflowFiles": {
+    "scripts/gallery-workflow/asset-loader.mjs": "f610f1b0c30c84c5ba56778c0efcfc70052e1aa4f5a2ad694ee6c4dbb6ee48a2",
+    "scripts/gallery-workflow/delivery.mjs": "27a7458e06f1254eeb80f81db39e2ac9f5b4906ea0ee24864b5e0fc495ab2392",
+    "scripts/gallery-workflow/feature.mjs": "ae90abe050b4dcff1efc2fc816cd59f2ee77eacb7ba8dd85bf9fc604be3888e4",
+    "scripts/gallery-workflow/playwright.config.mjs": "570ff7fa0d748c705f275afc7d73b37fa73fe43471cf26eb78e78b31cec97959",
+    "scripts/gallery-workflow/process.mjs": "4828d29f1b2ee40dfac15750a0e18d7720d2c9e835635693835ea8eca3eec6d9",
+    "scripts/gallery-workflow/register-assets.mjs": "b43a5f5816c7e644b1a21b6aec62cc22516dff630900ac88cc308c8aef5b91cc",
+    "scripts/gallery-workflow/release.mjs": "98a77ec7ba74bd17284c57315f856bd9d99e84bb33c092b1ebf95aecb8b4bedc",
+    "scripts/gallery-workflow/reporter.mjs": "e63a8c96956f9a702250f719f5738ab6c65190780a4402949e20c0388440fc36",
+    "scripts/gallery-workflow/selection.mjs": "cd0b739ecf2f55c6f6d64ec5a8d51fe756925d8f4c4c64e18ed41433ceb2ea00",
+    "scripts/gallery-workflow/source-child.mjs": "5e51e1529ac0d55b57bba8c54fcf0ad44604877c6e5f96b3e7b3d523b199f39b",
+    "AGENTS.md": "ffb0949f56e5ab5b67c1825ff2caf9436191e7589924c3ef5b211f95846c48b7",
+    "docs/toolcraft/gallery-workflow.md": "70a0d4fce0aa82ec7799d23e7103a81dd808f5639896dd1b6fe88f6192a04394"
+  },
+  "packageScripts": {
+    "verify:delivery": "node scripts/gallery-workflow/delivery.mjs",
+    "test:feature": "node scripts/gallery-workflow/feature.mjs",
+    "verify:final": "node scripts/gallery-workflow/delivery.mjs"
+  },
+  "signature": "GX7gJ5FHIc7YoWaTYh22uWYH2aQrp6rV7DlfG3ntzCN/CGk48rt4cDEc2UpUc2A4jfepQdqBdzW1r5VNqeL0Bg=="
+}

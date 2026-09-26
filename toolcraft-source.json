@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "type": "github",
+  "repository": "https://github.com/pixel-point/toolcraft",
+  "requestedRef": "4952c4a59dc85a5a29079d81c8666c4898461ab6",
+  "resolvedCommit": "4952c4a59dc85a5a29079d81c8666c4898461ab6",
+  "path": "examples/liquid-metal",
+  "cliVersion": "0.0.26",
+  "manifestVersion": 1,
+  "originalPackageName": "liquid-metal"
+}
