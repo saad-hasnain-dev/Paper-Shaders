@@ -220,6 +220,10 @@ export function LiquidMetal3DRenderer(): React.JSX.Element {
     }
 
     const sceneRenderer = new LiquidMetalSceneRenderer(canvas, {
+      compileAsync: true,
+      onSurfaceReady: () => {
+        renderRequestedRef.current = true;
+      },
       preserveDrawingBuffer: true,
     });
     sceneRendererRef.current = sceneRenderer;
@@ -274,6 +278,7 @@ export function LiquidMetal3DRenderer(): React.JSX.Element {
 
       const shouldRender =
         Boolean(currentModel) &&
+        sceneRenderer.isSurfaceReady() &&
         isLiquidMetalPreviewFrameDue(now, nextRenderAtMs) &&
         (currentState.timeline.isPlaying ||
           renderBurstFramesRef.current > 0 ||

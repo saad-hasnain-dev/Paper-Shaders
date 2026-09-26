@@ -865,7 +865,7 @@ test("browser: authored Liquid Metal scene is preloaded and resettable", async (
   ).getByRole("switch");
   await expect(includeBackground).toHaveAttribute("aria-checked", "true");
   await expect(page.getByLabel("Background hex").last()).toHaveValue(
-    "#AFAFC5",
+    "#FFFFFF",
   );
 
   await expect(page.getByLabel("Background hex", { exact: true })).toHaveValue(

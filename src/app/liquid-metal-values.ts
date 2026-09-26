@@ -240,7 +240,7 @@ export function getLiquidMetal3DSettings(
 
   return {
     angle: asNumber(state.values[presetTargets.angle], defaults.angle),
-    background: asColor(state.values["appearance.background"], "#AFAFC5"),
+    background: asColor(state.values["appearance.background"], "#FFFFFF"),
     colorBack: asColor(state.values[presetTargets.colorBack], defaults.colorBack),
     colorTint: asColor(state.values[presetTargets.colorTint], defaults.colorTint),
     contour: asNumber(state.values[presetTargets.contour], defaults.contour),

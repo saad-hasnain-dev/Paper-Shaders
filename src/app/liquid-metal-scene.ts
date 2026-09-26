@@ -83,7 +83,6 @@ type LiquidMetalUniforms = {
   u_materialBackdrop: { value: THREE.Vector3 };
   u_materialScale: { value: number };
   u_materialTint: { value: THREE.Vector3 };
-  u_materialType: { value: number };
   u_offset: { value: THREE.Vector2 };
   u_repetition: { value: number };
   u_rotation: { value: number };
@@ -138,7 +137,6 @@ function createLiquidMetalUniforms(): LiquidMetalUniforms {
     u_materialBackdrop: { value: new THREE.Vector3(0.43, 0.43, 0.55) },
     u_materialScale: { value: 1 },
     u_materialTint: { value: new THREE.Vector3(1, 1, 1) },
-    u_materialType: { value: 0 },
     u_offset: { value: new THREE.Vector2(0, 0) },
     u_repetition: { value: 2 },
     u_rotation: { value: 0 },
@@ -802,7 +800,17 @@ export class LiquidMetalSceneRenderer {
   private readonly directEnvironmentTextures = new Map<string, THREE.Texture>();
   private height = 0;
   private readonly liquidUniforms: LiquidMetalUniforms;
-  private readonly material: THREE.MeshPhysicalMaterial;
+  private material: THREE.MeshPhysicalMaterial;
+  private activeMaterialIndex = 0;
+  private readonly compileAsync: boolean;
+  private readonly onSurfaceReady: (() => void) | undefined;
+  private readonly readyMaterialIndexes = new Set<number>();
+  private stickerProgramReady = false;
+  private requestedMaterialIndex = 0;
+  private readonly surfaceMaterials = new Map<
+    number,
+    THREE.MeshPhysicalMaterial
+  >();
   private readonly modelGroup: THREE.Group;
   private readonly ownedEnvironmentTextures = new Set<THREE.Texture>();
   private readonly pmremGenerator: THREE.PMREMGenerator;
@@ -840,11 +848,15 @@ export class LiquidMetalSceneRenderer {
   constructor(
     canvas: HTMLCanvasElement,
     options: {
+      compileAsync?: boolean;
       environmentMaxWidth?: number;
+      onSurfaceReady?: () => void;
       preserveDrawingBuffer?: boolean;
     } = {},
   ) {
     this.canvas = canvas;
+    this.compileAsync = options.compileAsync ?? false;
+    this.onSurfaceReady = options.onSurfaceReady;
     this.renderer = new THREE.WebGLRenderer({
       alpha: true,
       antialias: true,
@@ -891,7 +903,25 @@ export class LiquidMetalSceneRenderer {
     this.ownedEnvironmentTextures.add(
       this.liquidUniforms.u_environmentMap.value,
     );
-    this.material = new THREE.MeshPhysicalMaterial({
+    this.material = this.getSurfaceMaterial(0);
+
+    this.prepare(1, 1);
+    if (this.compileAsync) {
+      this.compileSurfaceMaterial(0, this.material);
+    } else {
+      this.warmMaterial();
+    }
+    this.modelGroup.add(this.stickerGroup);
+    this.warmStickerMaterial();
+  }
+
+  /** One program per material keeps each shader small enough to compile quickly. */
+  private getSurfaceMaterial(materialIndex: number): THREE.MeshPhysicalMaterial {
+    const cached = this.surfaceMaterials.get(materialIndex);
+
+    if (cached) return cached;
+
+    const material = new THREE.MeshPhysicalMaterial({
       clearcoat: 0,
       color: 0xffffff,
       envMapIntensity: 1.45,
@@ -899,7 +929,7 @@ export class LiquidMetalSceneRenderer {
       roughness: 0.12,
       side: THREE.DoubleSide,
     });
-    this.material.onBeforeCompile = (shader) => {
+    material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, this.liquidUniforms);
       shader.vertexShader = shader.vertexShader
         .replace(
@@ -928,14 +958,70 @@ export class LiquidMetalSceneRenderer {
           `#include <lights_fragment_maps>\n${liquidMetalPhysicalEnvironmentApply}\n${surfaceMaterialLightsApply}`,
         );
     };
-    this.material.customProgramCacheKey = () =>
-      "toolcraft-liquid-metal-physical-v5-surface-materials";
-    this.material.userData.toolcraftLiquidMetalManaged = true;
+    material.defines = { ...material.defines, LM_MATERIAL: materialIndex };
+    material.customProgramCacheKey = () =>
+      `toolcraft-liquid-metal-physical-v6-surface-${materialIndex}`;
+    material.userData.toolcraftLiquidMetalManaged = true;
+    this.surfaceMaterials.set(materialIndex, material);
+    return material;
+  }
 
-    this.prepare(1, 1);
-    this.warmMaterial();
-    this.modelGroup.add(this.stickerGroup);
-    this.warmStickerMaterial();
+  /**
+   * Preview renderers compile a newly selected material in the background and
+   * keep drawing the previous one until it is ready, so the page never freezes.
+   */
+  private setSurfaceMaterial(materialIndex: number): void {
+    if (materialIndex === this.requestedMaterialIndex) return;
+
+    this.requestedMaterialIndex = materialIndex;
+    const material = this.getSurfaceMaterial(materialIndex);
+
+    if (!this.compileAsync || this.readyMaterialIndexes.has(materialIndex)) {
+      this.applySurfaceMaterial(materialIndex);
+      return;
+    }
+
+    this.compileSurfaceMaterial(materialIndex, material);
+  }
+
+  private compileSurfaceMaterial(
+    materialIndex: number,
+    material: THREE.MeshPhysicalMaterial,
+  ): void {
+    const warmupGeometry = new THREE.PlaneGeometry(1, 1);
+    const warmupMesh = new THREE.Mesh(warmupGeometry, material);
+
+    this.renderer
+      .compileAsync(warmupMesh, this.camera, this.scene)
+      .catch(() => undefined)
+      .then(() => {
+        warmupGeometry.dispose();
+        if (this.disposed) return;
+        this.readyMaterialIndexes.add(materialIndex);
+        if (this.requestedMaterialIndex === materialIndex) {
+          this.applySurfaceMaterial(materialIndex);
+        }
+        this.onSurfaceReady?.();
+      });
+  }
+
+  private applySurfaceMaterial(materialIndex: number): void {
+    const material = this.getSurfaceMaterial(materialIndex);
+
+    this.activeMaterialIndex = materialIndex;
+    this.material = material;
+    this.baseModelMeshes.forEach((mesh) => {
+      mesh.material = material;
+    });
+  }
+
+  /** False until the current surface program has finished compiling. */
+  isSurfaceReady(): boolean {
+    return (
+      !this.compileAsync ||
+      (this.stickerProgramReady &&
+        this.readyMaterialIndexes.has(this.activeMaterialIndex))
+    );
   }
 
   private warmMaterial(): void {
@@ -1013,6 +1099,22 @@ export class LiquidMetalSceneRenderer {
     const mesh = new THREE.Mesh(geometry, material);
 
     mesh.position.set(0, 0, 0);
+
+    if (this.compileAsync) {
+      this.renderer
+        .compileAsync(mesh, this.camera, this.scene)
+        .catch(() => undefined)
+        .then(() => {
+          geometry.dispose();
+          material.dispose();
+          texture.dispose();
+          if (this.disposed) return;
+          this.stickerProgramReady = true;
+          this.onSurfaceReady?.();
+        });
+      return;
+    }
+
     this.modelGroup.add(mesh);
     this.renderer.render(this.scene, this.camera);
     this.modelGroup.remove(mesh);
@@ -1755,7 +1857,7 @@ export class LiquidMetalSceneRenderer {
     uniforms.u_scratchScale.value = settings.scratchScale;
     uniforms.u_fit.value = settings.fit === "cover" ? 2 : 1;
     uniforms.u_offset.value.set(settings.offsetX, settings.offsetY);
-    uniforms.u_materialType.value = getSurfaceMaterialIndex(settings.material);
+    this.setSurfaceMaterial(getSurfaceMaterialIndex(settings.material));
     uniforms.u_materialScale.value = settings.materialScale;
     if (this.appliedMaterialBackdrop !== settings.background) {
       this.appliedMaterialBackdrop = settings.background;
@@ -1970,7 +2072,7 @@ export class LiquidMetalSceneRenderer {
     this.baseModelMeshes.length = 0;
     this.stickerSurfaceMeshes = [];
     this.modelGroup.clear();
-    this.material.dispose();
+    this.surfaceMaterials.forEach((material) => material.dispose());
     if (this.scratchTexture) {
       disposeScratchTexture(this.scratchTexture);
       this.scratchTexture = null;

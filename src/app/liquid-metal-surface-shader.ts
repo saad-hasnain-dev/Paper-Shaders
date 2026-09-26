@@ -293,9 +293,15 @@ export const liquidMetalPhysicalFragmentApply = /* glsl */ `
     float time = phase + firstFramePhase;
     vec3 worldNormal = inverseTransformDirection(normal, viewMatrix);
     vec3 viewDirection = normalize(vViewPosition);
-    vec3 rippledWorldNormal = u_materialType < 0.5
-      ? getRippledWorldNormal(vLiquidWorldPosition, worldNormal, phase)
-      : worldNormal;
+    #if LM_MATERIAL == 0
+      vec3 rippledWorldNormal = getRippledWorldNormal(
+        vLiquidWorldPosition,
+        worldNormal,
+        phase
+      );
+    #else
+      vec3 rippledWorldNormal = worldNormal;
+    #endif
     vec3 rippledViewNormal = normalize(
       (viewMatrix * vec4(rippledWorldNormal, 0.0)).xyz
     );
@@ -327,6 +333,7 @@ export const liquidMetalPhysicalFragmentApply = /* glsl */ `
     float fresnelBase = 1.0
       - max(dot(rippledViewNormal, viewDirection), 0.0);
     float fresnel = fresnelBase * fresnelBase * fresnelBase;
+    #if LM_MATERIAL == 0
     vec2 uv = getLiquidMetalSurfaceUv(
       vViewPosition,
       rippledViewNormal,
@@ -476,6 +483,7 @@ export const liquidMetalPhysicalFragmentApply = /* glsl */ `
       0.07,
       0.18
     );
+    #endif
 `;
 
 export const liquidMetalPhysicalEnvironmentApply = /* glsl */ `

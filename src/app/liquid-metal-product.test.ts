@@ -86,11 +86,11 @@ describe("Liquid Metal 3D product", () => {
       up: [0, 1, 0],
     });
     expect(state.values["shader.offset"]).toEqual({ x: 0, y: 0 });
-    expect(state.values["appearance.background"]).toEqual({ hex: "#AFAFC5" });
+    expect(state.values["appearance.background"]).toEqual({ hex: "#FFFFFF" });
     expect(state.values["export.includeBackground"]).toBe(true);
     expect(settings).toMatchObject({
       angle: 70,
-      background: "#AFAFC5",
+      background: "#FFFFFF",
       colorBack: "#AAAAAC",
       colorTint: "#FFFFFF",
       fit: "contain",

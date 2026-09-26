@@ -25,7 +25,7 @@ const shaderResponsiveness = (reason: string) => ({
 export const appSchema = defineToolcraft({
   canvas: {
     enabled: true,
-    renderScale: true,
+    renderScale: { defaultValue: 1 },
     size: { height: 1080, unit: "px", width: 1920 },
     sizing: { mode: "editable-output" },
     upload: true,
@@ -585,7 +585,7 @@ export const appSchema = defineToolcraft({
               ),
             },
             background: {
-              defaultValue: { hex: "#AFAFC5" },
+              defaultValue: { hex: "#FFFFFF" },
               label: false,
               orderRole: "color",
               target: "appearance.background",

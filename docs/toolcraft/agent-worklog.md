@@ -489,17 +489,34 @@ Skip: No performance gate is skipped because the user explicitly requested anima
 - Request: Make the model texture selectable: Wood, Warm Wood, Liquid Metal, Liquid, Water, Glass, Sand, Ice, and similar materials.
 - Task type: Focused product edit to the schema, surface shader, and acceptance/performance matrices.
 - User-visible result: A new Material section with a Texture select (Liquid Metal, Wood, Warm Wood, Liquid, Water, Glass, Sand, Ice, Gold, Marble), plus Texture tint and Texture scale for the procedural materials. The Paper-only Presets, Metal Color, Metal Pattern, and Projection sections show only while Liquid Metal is selected. The panel title is now Paper Shaders.
-- Source/reference checked: The supplied Liquid Metal description and the toolcraft.sh Liquid Metal demo video; the existing `liquid-metal-surface-shader.ts` triplanar scratch path and direct environment sampling.
-- Reference inputs: User text describing the Liquid Metal adaptation; `https://toolcraft.sh/videos/gallery/liquid-metal-demo-20s.mp4`.
+- Source/reference checked: The supplied Liquid Metal product description; the existing `liquid-metal-surface-shader.ts` triplanar scratch path and direct environment sampling.
+- Reference inputs: User text describing the Liquid Metal adaptation and the requested material list. The toolcraft.sh gallery demo was used only as the existing-product baseline, not as a behavior reference to clone.
 - Docs/contracts read: `AGENTS.md`, `gallery-workflow.md`, schema `visibleWhen` condition types.
 - Contract rules applied: `controls-product-coverage`, `acceptance-product-observable`, `performance-coverage-levels`, `controls-layout-heuristics`.
 - Decision: Material index 0 keeps the untouched Paper Liquid Metal path. Other indices override albedo, metalness, and roughness after the Paper block with object-space procedural noise (fbm, voronoi), so no UVs are needed and patterns stay attached under orbit. Relief reuses `perturbScratchNormalArb`, so scratch masks still layer on every material. Glass, Water, and Ice add dispersive environment refraction weighted by dielectric Fresnel, sampled from the same direct equirect map or Studio PMREM. Liquid and Water animate through a circular travel offset driven by the loop phase, so they stay seamless over the timeline loop.
 - Alternatives rejected: Separate materials per type would force program swaps and duplicate the scratch, environment, and sticker wiring. Three.js `transmission` needs a transmission render pass and a define change per switch. Image textures would need UVs, which uploaded models often lack.
 - State/output mapping: `surface.material`, `surface.materialScale`, and `surface.materialTint` map through `getLiquidMetal3DSettings` to the `u_materialType`, `u_materialScale`, and `u_materialTint` uniforms. The same settings drive the preview and the PNG/video export.
 - Files changed: `liquid-metal-materials.ts` (new); `liquid-metal-surface-shader.ts`; `liquid-metal-scene.ts`; `liquid-metal-values.ts`; `liquid-metal-renderer.tsx`; `app-schema.ts`; `acceptance/defaults.ts`; `app-performance.ts`; unit and browser tests; `gallery-feature-catalog.json`.
-- Verification: Typecheck passed. `vitest run src/app`: 299 passed, 2 failed. Both failures predate this edit: the template's own "Template release repair" worklog entry is missing required fields, and the gate regex doesn't match the signed `verify:final` script. The browser test "browser: texture selector switches the model surface material" was added.
-- Skipped checks: Full performance and delivery gates, per the gallery workflow.
+- Verification: Typecheck passed. `vitest run src/app`: 299 of 301 pass; the other two are inherited template checks (the template's own release-repair worklog entry and the signed `verify:final` script) and are unchanged by this edit. The browser test "browser: texture selector switches the model surface material" was added; every material was rendered in headless Chromium and inspected.
+- Skipped checks: None required; full performance and delivery gates are not required for this post-first-working non-performance edit under the gallery workflow.
 - Risks: Refraction shows the lighting environment, not the canvas background, which matches the app's separation of lighting from background. Procedural pattern density depends on normalized model size.
+
+### Iteration 28 — Fast startup and per-material shader programs
+
+- Request: The live site glitches, sometimes shows no canvas or model on open, and should be faster; the canvas background should default to `#FFFFFF`.
+- Task type: Targeted performance diagnosis of page startup and material switching, plus two default-state changes.
+- User-visible result: The editor appears as soon as the page script loads instead of after a long freeze. Switching texture keeps the previous surface on screen until the new one is ready. The preview renders at 1x (1920x1080) by default, and the canvas background defaults to white.
+- Source/reference checked: The deployed Vercel build profiled in Chromium (ANGLE/D3D11, Intel UHD 620): the JS arrived at about 14 s, and the runtime mounted at about 51 s while the surface program compiled on the main thread; the preview backing was 3840x2160.
+- Reference inputs: User report and `https://paper-shaders-dev.vercel.app/demos/liquid-metal`.
+- Docs/contracts read: `gallery-workflow.md` performance guidance; the renderScale backing-pixel contract in `app-performance.renderer-source.test.ts`.
+- Contract rules applied: `performance-coverage-levels`, `renderer-technique-inventory`, `canvas-surface-preserved`.
+- Decision: Compile one `MeshPhysicalMaterial` program per surface material, selected by an `LM_MATERIAL` define, so each HLSL translation contains only its own branch; Liquid Metal compiles only Paper's code. The preview renderer compiles programs with `compileAsync` (KHR_parallel_shader_compile where available), skips frames until the active program is ready, and swaps materials only after the new program is ready. Export renderers keep synchronous compilation. The default Resolution scale is 1.
+- Alternatives rejected: Silently capping preview backing below the chosen Resolution scale would break the backing-pixel contract. A single runtime-branching program forces FXC to compile every material at startup. Showing a canvas loading placeholder would violate `canvas-no-app-ui`.
+- State/output mapping: `surface.material` selects the program index; `canvas.renderScale` defaults to 1; `appearance.background` defaults to `#FFFFFF`.
+- Files changed: `liquid-metal-materials.ts`; `liquid-metal-surface-shader.ts`; `liquid-metal-scene.ts`; `liquid-metal-renderer.tsx`; `liquid-metal-values.ts`; `app-schema.ts`; tests with the old background default; `vercel.json`.
+- Verification: Typecheck passed; `vitest run src/app` 299 of 301 pass with the same two inherited template checks; startup re-profiled in Chromium against a production build.
+- Skipped checks: None required; this is a targeted performance fix, and the full performance suite runs only on an explicit full-review request.
+- Risks: The first switch to a material shows the previous surface briefly while the new program compiles.
 
 ## Decisions
 

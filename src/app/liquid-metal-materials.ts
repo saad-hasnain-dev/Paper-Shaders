@@ -43,7 +43,6 @@ export function getSurfaceMaterialIndex(id: SurfaceMaterialId): number {
 }
 
 export const surfaceMaterialFragmentPars = /* glsl */ `
-  uniform float u_materialType;
   uniform float u_materialScale;
   uniform vec3 u_materialTint;
   uniform vec3 u_materialBackdrop;
@@ -84,6 +83,7 @@ export const surfaceMaterialFragmentPars = /* glsl */ `
     return value;
   }
 
+  #if LM_MATERIAL == 7
   // Returns nearest and second-nearest feature distances for crack edges.
   vec2 lmVoronoi(vec3 p) {
     vec3 cell = floor(p);
@@ -111,6 +111,7 @@ export const surfaceMaterialFragmentPars = /* glsl */ `
     }
     return vec2(first, second);
   }
+  #endif
 
   // Circular travel keeps animated materials seamless across the timeline loop.
   vec3 lmLoopTravel(float phase, float radius) {
@@ -126,6 +127,7 @@ export const surfaceMaterialFragmentPars = /* glsl */ `
     return 0.5 + 0.5 * cos(2.0 * LIQUID_PI * (t + vec3(0.0, 0.33, 0.67)));
   }
 
+  #if LM_MATERIAL == 4 || LM_MATERIAL == 5 || LM_MATERIAL == 7
   vec3 lmSampleEnvironment(vec3 worldDirection, float roughness) {
     if (u_environmentDirect > 0.5) {
       float environmentCos = cos(u_environmentRotation);
@@ -145,6 +147,7 @@ export const surfaceMaterialFragmentPars = /* glsl */ `
       return vec3(0.5);
     #endif
   }
+  #endif
 `;
 
 /*
@@ -158,9 +161,8 @@ export const surfaceMaterialFragmentApply = /* glsl */ `
     vec3 lmTransmissionTint = vec3(1.0);
     float lmBackdropMix = 0.0;
     float lmCaustic = 0.0;
-    int lmMaterial = int(u_materialType + 0.5);
-
-    if (lmMaterial > 0) {
+    #if LM_MATERIAL > 0
+    {
       vec3 lmPosition = vLiquidObjectPosition * u_materialScale;
       vec3 lmTravel = lmLoopTravel(phase, 0.55);
       vec3 lmAlbedo = vec3(0.8);
@@ -169,7 +171,7 @@ export const surfaceMaterialFragmentApply = /* glsl */ `
       float lmHeight = 0.0;
       float lmBump = 0.0;
 
-      if (lmMaterial == 1 || lmMaterial == 2) {
+      #if LM_MATERIAL == 1 || LM_MATERIAL == 2
         vec3 warped = lmPosition
           + (lmFbm(lmPosition * vec3(2.4, 0.7, 2.4)) - 0.5) * 0.35;
         float rings = length(warped.xz + vec2(0.37, -0.21)) * 9.0;
@@ -178,22 +180,22 @@ export const surfaceMaterialFragmentApply = /* glsl */ `
           * (1.0 - smoothstep(0.55, 1.0, ring));
         float grain = lmNoise3(lmPosition * vec3(60.0, 4.0, 60.0));
         float fibers = lmNoise3(lmPosition * vec3(140.0, 10.0, 140.0));
-        vec3 lightWood = lmMaterial == 1
+        vec3 lightWood = LM_MATERIAL == 1
           ? vec3(0.80, 0.63, 0.43)
           : vec3(0.82, 0.45, 0.22);
-        vec3 darkWood = lmMaterial == 1
+        vec3 darkWood = LM_MATERIAL == 1
           ? vec3(0.47, 0.32, 0.19)
           : vec3(0.40, 0.15, 0.06);
         lmAlbedo = lmSrgbToLinear(
           mix(darkWood, lightWood, lateWood * 0.8 + 0.2 * grain)
             * (0.86 + 0.28 * fibers)
         );
-        lmRoughness = lmMaterial == 1
+        lmRoughness = LM_MATERIAL == 1
           ? 0.62 - 0.12 * lateWood
           : 0.30 - 0.08 * lateWood;
         lmHeight = lateWood * 0.4 + grain * 0.3 + fibers * 0.3;
         lmBump = 0.3;
-      } else if (lmMaterial == 3) {
+      #elif LM_MATERIAL == 3
         vec3 flowPosition = lmPosition * 1.6;
         vec3 warp = vec3(
           lmFbm(flowPosition + lmTravel),
@@ -206,7 +208,7 @@ export const surfaceMaterialFragmentApply = /* glsl */ `
         lmRoughness = 0.06;
         lmHeight = flow;
         lmBump = 0.35;
-      } else if (lmMaterial == 4) {
+      #elif LM_MATERIAL == 4
         float swell = lmFbm(lmPosition * 3.0 + lmTravel);
         float chop = lmNoise3(lmPosition * 9.0 - lmTravel * 1.5);
         float causticNoise = lmNoise3(lmPosition * 5.0 + lmTravel * 1.3 + swell * 1.5);
@@ -219,14 +221,14 @@ export const surfaceMaterialFragmentApply = /* glsl */ `
         lmIor = 1.33;
         lmBackdropMix = 0.55;
         lmTransmissionTint = vec3(0.45, 0.8, 0.9);
-      } else if (lmMaterial == 5) {
+      #elif LM_MATERIAL == 5
         lmAlbedo = vec3(0.0);
         lmRoughness = 0.015;
         lmRefraction = 1.0;
         lmIor = 1.5;
         lmBackdropMix = 0.7;
         lmTransmissionTint = vec3(0.9, 0.97, 0.95);
-      } else if (lmMaterial == 6) {
+      #elif LM_MATERIAL == 6
         float grain = lmNoise3(lmPosition * 180.0);
         float coarse = lmNoise3(lmPosition * 70.0);
         float ripples = sin(
@@ -243,7 +245,7 @@ export const surfaceMaterialFragmentApply = /* glsl */ `
         lmRoughness = 0.92;
         lmHeight = ripples * 0.5 + grain * 0.5;
         lmBump = 0.6;
-      } else if (lmMaterial == 7) {
+      #elif LM_MATERIAL == 7
         vec2 cells = lmVoronoi(lmPosition * 2.5);
         float crack = 1.0 - smoothstep(0.0, 0.06, cells.y - cells.x);
         float frost = lmFbm(lmPosition * 8.0);
@@ -256,14 +258,14 @@ export const surfaceMaterialFragmentApply = /* glsl */ `
         lmIor = 1.31;
         lmBackdropMix = 0.5;
         lmTransmissionTint = vec3(0.68, 0.87, 1.0);
-      } else if (lmMaterial == 8) {
+      #elif LM_MATERIAL == 8
         float brushed = lmNoise3(lmPosition * vec3(220.0, 3.0, 220.0));
         lmAlbedo = vec3(1.0, 0.71, 0.29);
         lmMetalness = 1.0;
         lmRoughness = 0.1 + 0.07 * brushed;
         lmHeight = brushed;
         lmBump = 0.04;
-      } else if (lmMaterial == 9) {
+      #elif LM_MATERIAL == 9
         float veinPath = lmPosition.x * 2.0 + lmPosition.y * 1.2
           + lmFbm(lmPosition * 1.8) * 5.0;
         float vein = pow(1.0 - abs(sin(veinPath * 1.4)), 12.0);
@@ -280,7 +282,7 @@ export const surfaceMaterialFragmentApply = /* glsl */ `
           ) * (0.93 + 0.07 * cloud)
         );
         lmRoughness = 0.12;
-      }
+      #endif
 
       if (lmBump > 0.0) {
         vec2 lmDerivatives = lmBump * vec2(dFdx(lmHeight), dFdy(lmHeight));
@@ -297,6 +299,7 @@ export const surfaceMaterialFragmentApply = /* glsl */ `
       metalnessFactor = lmMetalness;
       roughnessFactor = clamp(lmRoughness, 0.01, 1.0);
     }
+    #endif
 `;
 
 /*
@@ -304,6 +307,7 @@ export const surfaceMaterialFragmentApply = /* glsl */ `
  * through the surface, weighted by the dielectric Fresnel transmission term.
  */
 export const surfaceMaterialLightsApply = /* glsl */ `
+    #if LM_MATERIAL == 4 || LM_MATERIAL == 5 || LM_MATERIAL == 7
     if (lmRefraction > 0.001) {
       vec3 lmWorldNormal = inverseTransformDirection(geometryNormal, viewMatrix);
       vec3 lmWorldView = inverseTransformDirection(geometryViewDir, viewMatrix);
@@ -335,4 +339,5 @@ export const surfaceMaterialLightsApply = /* glsl */ `
       totalEmissiveRadiance += lmTransmitted * lmRefraction * (1.0 - lmFresnel)
         + lmReflected * (0.08 + 0.9 * pow(1.0 - lmCosine, 3.0)) * lmRefraction;
     }
+    #endif
 `;
